@@ -7,6 +7,8 @@
 #include<sys/types.h>
 #include <time.h>
 #include <iostream>
+#include <algorithm>
+#include <vector>
 #include<fstream>
 #include "string.h"
 
@@ -45,6 +47,7 @@ int f_Column1[MaxColumnNum][MaxRowNum]; //The  flowing rate in column direction 
 
 int Pop[PopSize][Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum]; //The population (The phase chosen by each individual at each sampling moment)
 int New_Pop[PopSize][Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum];// Generateing new population
+int** New_Pop_2 = nullptr; //Represented population as an array of length PopSize consisting of chromosomes represented as continuous arrays of size (k * RowNum * ColumnNum)
 int Best_Pop[Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum]; // The best solution
 int New_Car_Row_Initial[Max_Sched_Time / Min_Win][MaxRowNum];	// Generate new vehicles in a row direction (right to left) at each sampling time
 int New_Car_Column_Initial[Max_Sched_Time / Min_Win][MaxColumnNum];	// Generate new vehicles in a column direction (above to below) at each sampling time
@@ -1062,6 +1065,7 @@ void New_Update_C()
 	}
 }
 
+/*
 int main()
 {
 	srand((unsigned)time(NULL) + MaxRowNum * MaxColumnNum * 1000000);
@@ -1160,5 +1164,263 @@ int main()
 	}
 	return 0;
 }
+*/
 
 
+int GetChromosomeSize()
+{
+	return (Sched_Time / Win) * RowNum * ColumnNum;
+}
+
+
+void AllocateNewRepresentation()
+{
+	int chromosomeSize = GetChromosomeSize(), i = 0;
+	New_Pop_2 = new int*[PopSize];
+	for (i = 0; i < PopSize; i++)
+	{
+		New_Pop_2[i] = new int[chromosomeSize];
+		memset(New_Pop_2[i], 0, chromosomeSize * sizeof(int));
+	}
+}
+
+
+void DeallocateNewRepresentation()
+{
+	int i = 0;
+	for (i = 0; i < PopSize; i++)
+	{
+		delete[] New_Pop_2[i];
+	}
+	delete[] New_Pop_2;
+}
+
+
+void NewPopToNewPop2()
+{
+	int candidate = 0, k = 0, r = 0, c = 0, newIndex;
+	for (candidate = 0; candidate < PopSize; candidate++)
+	{
+		for (k = 0; k < Sched_Time / Win; k++)
+		{
+			for (r = 0; r < RowNum; r++)
+			{
+				for (c = 0; c < ColumnNum; c++)
+				{
+					newIndex = k * RowNum * ColumnNum + r * ColumnNum + c;
+					New_Pop_2[candidate][newIndex] = New_Pop[candidate][k][r][c];
+				}
+			}
+		}
+	}
+}
+
+
+void NewPopFromNewPop2()
+{
+	int candidate = 0, k = 0, r = 0, c = 0, newIndex;
+	for (candidate = 0; candidate < PopSize; candidate++)
+	{
+		for (k = 0; k < Sched_Time / Win; k++)
+		{
+			for (r = 0; r < RowNum; r++)
+			{
+				for (c = 0; c < ColumnNum; c++)
+				{
+					newIndex = k * RowNum * ColumnNum + r * ColumnNum + c;
+					New_Pop[candidate][k][r][c] = New_Pop_2[candidate][newIndex];
+				}
+			}
+		}
+	}
+}
+
+
+/*
+	It evaluates the candidate solutions in Pop[]
+	It saves the scores in Total_Obj[]
+	It updates the best solution saved in Best_Pop
+	It updates the best score in totalobj
+*/
+void EvaluatePopulationAndUpdateBest()
+{
+	int i, j, k;
+	for (popi = 0; popi < PopSize; popi++)
+	{
+		for (i = 0; i < RowNum + 1; i++)
+		{
+			for (j = 0; j < ColumnNum + 1; j++)
+			{
+				C_Row[i][j] = C_Row_Initial[i][j];
+				C_Column[j][i] = C_Column_Initial[j][i];
+				C_Row1[i][j] = C_Row1_Initial[i][j];
+				C_Column1[j][i] = C_Column1_Initial[j][i];
+			}
+		}
+		for (K = 0; K < Sched_Time / Win; K++)
+		{
+			if (K > 0)
+			{
+				New_Update_C();
+			}
+			Calculate_TotalNum();
+			Caculate_Obj();
+			Update_C();
+
+		}
+		Total_Obj[popi] = Obj[popi];
+		if (popi == 0)
+		{
+			totalobj = Total_Obj[popi];
+			I = popi;
+			for (i = 0; i < Sched_Time / Win; i++)
+			{
+				for (j = 0; j < RowNum; j++)
+				{
+					for (k = 0; k < ColumnNum; k++)
+					{
+						Best_Pop[i][j][k] = Pop[popi][i][j][k];
+					}
+				}
+			}
+		}
+		else
+		{
+			if (totalobj > Total_Obj[popi])
+			{
+				totalobj = Total_Obj[popi];
+				I = popi;
+				for (i = 0; i < Sched_Time / Win; i++)
+				{
+					for (j = 0; j < RowNum; j++)
+					{
+						for (k = 0; k < ColumnNum; k++)
+						{
+							Best_Pop[i][j][k] = Pop[popi][i][j][k];
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+/*
+* Copies the existing population in the New_Pop vector
+*/
+void DummySelect()
+{
+	memcpy(New_Pop, Pop, sizeof(Pop));
+}
+
+
+void Mutate(int mutation_prob)
+{
+	int candidate = 0, random_gene = 0, chance = 0;
+	int chromosome_size = GetChromosomeSize();
+	int* chromosome;
+	for (candidate = 0; candidate < PopSize; candidate++)
+	{
+		chromosome = New_Pop_2[candidate];
+		chance = rand() % 100;
+		if (chance >= mutation_prob)
+		{
+			continue;
+		}
+		random_gene = rand() % chromosome_size;
+		chromosome[random_gene] = (chromosome[random_gene] + (rand() % 3 + 1)) % 4;
+	}
+}
+
+
+void Crossover(int crossover_prob)
+{
+	struct chance {
+		int index;
+		int prob;
+	};
+	struct chance chances[PopSize] = { 0 };
+	auto comparator = [](struct chance first, struct chance second) -> bool {
+		return first.prob < second.prob;
+	};
+	int candidate = 0;
+	for (candidate = 0; candidate < PopSize; candidate++)
+	{
+		chances[candidate].index = candidate;
+		chances[candidate].prob = rand() % 100;
+	}
+	std::sort(std::begin(chances), std::end(chances), comparator);
+	int i = 0, j = 0, temp = 0, cutpoint = 0, chromosomeSize = 0;
+	chromosomeSize = GetChromosomeSize();
+	for (i = 0; i < PopSize - 1; i += 2)
+	{
+		if (chances[i].prob >= crossover_prob)
+			break;
+		int* firstParent = New_Pop_2[chances[i].index];
+		int* secondParent = New_Pop_2[chances[i + 1].index];
+		cutpoint = rand() % (chromosomeSize - 1) + 1;
+		for(j = 0; j < cutpoint; j++)
+		{
+			std::swap(firstParent[i], secondParent[i]);
+		}
+	}
+}
+
+
+int main()
+{
+	srand((unsigned)time(NULL) + MaxRowNum * MaxColumnNum * 1000000);
+
+	int i, j, k, Sum, rep, l;
+	Read_GenRepeat();	// Get the number of iterations of the algorithm and the number of repetitions of the experiment
+	for (rep = 0; rep < Repeat; rep++)
+	{
+		Read_Instance();
+		Read_New_car();
+		Read_Exit_TurnRatio();
+		Read_Entrance_Ratio();
+		Read_Lij();
+		Read_Lanes();
+		Read_L();
+		time_t start = clock();
+		
+		int generation = 0;
+		int MAX_GENERATIONS = 100;
+		Initi_Pop();
+		EvaluatePopulationAndUpdateBest();
+		AllocateNewRepresentation();
+		for (generation = 0; generation < MAX_GENERATIONS; generation++)
+		{
+			DummySelect();
+			NewPopToNewPop2();
+			Mutate(5);
+			Crossover(30);
+			NewPopFromNewPop2();
+			memcpy(Pop, New_Pop, sizeof(New_Pop));
+			EvaluatePopulationAndUpdateBest();
+		}
+		DeallocateNewRepresentation();
+
+		outfile.open("Best Solution.csv", ios::app);
+		for (l = 0; l < Sched_Time / Win; l++)
+		{
+			for (i = 0; i < RowNum; i++)
+			{
+				for (j = 0; j < ColumnNum; j++)
+				{
+					outfile << Best_Pop[l][i][j] << " ";
+				}
+
+				outfile << endl;
+			}
+		}
+		outfile << endl;
+		outfile.close();
+
+		outfile.open("Results.csv", ios::app);
+		outfile << totalobj << endl;
+		outfile.close();
+	}
+	return 0;
+}
