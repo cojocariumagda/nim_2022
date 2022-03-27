@@ -47,6 +47,7 @@ int f_Column1[MaxColumnNum][MaxRowNum]; //The  flowing rate in column direction 
 
 int Pop[PopSize][Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum]; //The population (The phase chosen by each individual at each sampling moment)
 int New_Pop[PopSize][Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum];// Generateing new population
+int** New_Pop_Temp = nullptr;
 int** New_Pop_2 = nullptr; //Represented population as an array of length PopSize consisting of chromosomes represented as continuous arrays of size (k * RowNum * ColumnNum)
 int Best_Pop[Max_Sched_Time / Min_Win][MaxRowNum][MaxColumnNum]; // The best solution
 int New_Car_Row_Initial[Max_Sched_Time / Min_Win][MaxRowNum];	// Generate new vehicles in a row direction (right to left) at each sampling time
@@ -1309,9 +1310,66 @@ void EvaluatePopulationAndUpdateBest()
 /*
 * Copies the existing population in the New_Pop vector
 */
-void DummySelect()
+
+int ComputeFitness(int* chromosome) {
+	int chromosomeSize = GetChromosomeSize();
+	int fitness = 0;
+	for (int i = 0; i < chromosomeSize; i++) {
+		fitness += chromosome[i];
+	}
+	return fitness;
+}
+
+void RouletteSelect()
 {
-	memcpy(New_Pop, Pop, sizeof(Pop));
+	struct fitness {
+		int index;
+		int fitness_;
+	};
+	struct fitness fitness_computed[PopSize] = { 0 };
+
+	int candidate = 0, k = 0, r = 0, c = 0, newIndex;
+	for (candidate = 0; candidate < PopSize; candidate++)
+	{
+		for (k = 0; k < Sched_Time / Win; k++)
+		{
+			for (r = 0; r < RowNum; r++)
+			{
+				for (c = 0; c < ColumnNum; c++)
+				{
+					newIndex = k * RowNum * ColumnNum + r * ColumnNum + c;
+					New_Pop_Temp[candidate][newIndex] = Pop[candidate][k][r][c];
+				}
+			}
+		}
+	}
+
+
+	int sumFitness = 0;
+
+	for (int candidate = 0; candidate < PopSize; candidate++)
+	{
+		fitness_computed[candidate].index = candidate;
+		fitness_computed[candidate].fitness_ = ComputeFitness(New_Pop_Temp[candidate]);
+		sumFitness += fitness_computed[candidate].fitness_;
+	}
+
+	int index_selected = 0;
+	for (int i = 0; i < PopSize; i++) {
+		float r = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sumFitness));
+		float newSum = 0;
+		for (int j = 0; j < PopSize; j++) {
+			newSum += fitness_computed[j].fitness_;
+			//stop when the new sum is higher than the random number
+			if (newSum > r) {
+				New_Pop_2[fitness_computed[j].index] = New_Pop_Temp[fitness_computed[j].index];
+				break;
+			}
+		}
+	}
+
+	
+
 }
 
 
@@ -1392,8 +1450,8 @@ int main()
 		AllocateNewRepresentation();
 		for (generation = 0; generation < MAX_GENERATIONS; generation++)
 		{
-			DummySelect();
-			NewPopToNewPop2();
+			RouletteSelect();
+			//NewPopToNewPop2(); // am transformat deja in formatul "NewPop2"
 			Mutate(5);
 			Crossover(30);
 			NewPopFromNewPop2();
