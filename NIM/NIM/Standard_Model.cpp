@@ -1328,6 +1328,14 @@ void RouletteSelect()
 	};
 	struct fitness fitness_computed[PopSize] = { 0 };
 
+	int chromosomeSize = GetChromosomeSize(), i = 0;
+	New_Pop_Temp = new int* [PopSize];
+	for (i = 0; i < PopSize; i++)
+	{
+		New_Pop_Temp[i] = new int[chromosomeSize];
+		memset(New_Pop_Temp[i], 0, chromosomeSize * sizeof(int));
+	}
+
 	int candidate = 0, k = 0, r = 0, c = 0, newIndex;
 	for (candidate = 0; candidate < PopSize; candidate++)
 	{
@@ -1367,6 +1375,12 @@ void RouletteSelect()
 			}
 		}
 	}
+
+	for (i = 0; i < PopSize; i++)
+	{
+		delete[] New_Pop_Temp[i];
+	}
+	delete[] New_Pop_Temp;
 
 	
 
