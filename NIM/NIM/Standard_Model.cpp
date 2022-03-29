@@ -1177,7 +1177,8 @@ int GetChromosomeSize()
 void AllocateNewRepresentation()
 {
 	int chromosomeSize = GetChromosomeSize(), i = 0;
-	New_Pop_2 = new int*[PopSize];
+	New_Pop_2 = new int* [PopSize];
+	memset(New_Pop_2, 0, sizeof(int*) * PopSize);
 	for (i = 0; i < PopSize; i++)
 	{
 		New_Pop_2[i] = new int[chromosomeSize];
@@ -1317,6 +1318,8 @@ int ComputeFitness(int* chromosome) {
 	for (int i = 0; i < chromosomeSize; i++) {
 		fitness += chromosome[i];
 	}
+	if (fitness == 0)
+		fitness = 1;
 	return fitness;
 }
 
@@ -1329,7 +1332,8 @@ void RouletteSelect()
 	struct fitness fitness_computed[PopSize] = { 0 };
 
 	int chromosomeSize = GetChromosomeSize(), i = 0;
-	New_Pop_Temp = new int* [PopSize];
+	New_Pop_Temp = new int*[PopSize];
+	memset(New_Pop_Temp, 0, sizeof(int*)* PopSize);
 	for (i = 0; i < PopSize; i++)
 	{
 		New_Pop_Temp[i] = new int[chromosomeSize];
@@ -1362,28 +1366,25 @@ void RouletteSelect()
 		sumFitness += fitness_computed[candidate].fitness_;
 	}
 
-	int index_selected = 0;
 	for (int i = 0; i < PopSize; i++) {
 		float r = static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / sumFitness));
 		float newSum = 0;
 		for (int j = 0; j < PopSize; j++) {
 			newSum += fitness_computed[j].fitness_;
 			//stop when the new sum is higher than the random number
-			if (newSum > r) {
-				New_Pop_2[fitness_computed[j].index] = New_Pop_Temp[fitness_computed[j].index];
-				break;
+			if (r < newSum) {
+				for(int k = 0; k < chromosomeSize; k++)
+					New_Pop_2[i][k] = New_Pop_Temp[fitness_computed[j].index][k];
 			}
 		}
 	}
+
 
 	for (i = 0; i < PopSize; i++)
 	{
 		delete[] New_Pop_Temp[i];
 	}
 	delete[] New_Pop_Temp;
-
-	
-
 }
 
 
